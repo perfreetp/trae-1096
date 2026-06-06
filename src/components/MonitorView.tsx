@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Maximize2, Minimize2, Play, Pause, Camera, Grid3X3, ListVideo, Car, Users, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 
@@ -8,6 +8,14 @@ const MonitorView: React.FC = () => {
   const [layout, setLayout] = useState<'4' | '9' | 'list'>('4');
   const [isPlaying, setIsPlaying] = useState(true);
   const [zoomCamera, setZoomCamera] = useState<string | null>(null);
+  const [showCaptureFlash, setShowCaptureFlash] = useState(false);
+
+  useEffect(() => {
+    if (state.lastCaptureTime) {
+      setShowCaptureFlash(true);
+      setTimeout(() => setShowCaptureFlash(false), 500);
+    }
+  }, [state.lastCaptureTime]);
 
   const cameras = useMemo(() => state.devices.filter(d => d.type === 'camera'), [state.devices]);
 
@@ -108,7 +116,17 @@ const MonitorView: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-900">
+    <div className="h-full flex flex-col bg-slate-900 relative">
+      {showCaptureFlash && (
+        <div className="absolute inset-0 bg-white z-50 pointer-events-none animate-pulse"></div>
+      )}
+      {state.lastCaptureTime && (
+        <div className="absolute top-4 right-4 z-40 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <Camera size={16} />
+          抓拍完成
+        </div>
+      )}
+
       <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 flex-shrink-0">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">

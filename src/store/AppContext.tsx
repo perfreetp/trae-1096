@@ -18,6 +18,8 @@ export interface AppState {
   selectedVehicle: Vehicle | null;
   activeTab: string;
   unacknowledgedAlerts: number;
+  gateStates: Record<string, boolean>;
+  lastCaptureTime: Date | null;
 }
 
 type ActionType =
@@ -34,7 +36,15 @@ type ActionType =
   | { type: 'ADD_OPERATION_LOG'; payload: OperationLog }
   | { type: 'UPDATE_DEVICE'; payload: Device }
   | { type: 'COMPLETE_SHIFT'; payload: { endTime: Date; nextOperator: { id: string; name: string } } }
-  | { type: 'UPDATE_SHIFT'; payload: Partial<ShiftRecord> };
+  | { type: 'UPDATE_SHIFT'; payload: Partial<ShiftRecord> }
+  | { type: 'SET_GATE_STATE'; payload: { deviceId: string; isOpen: boolean } }
+  | { type: 'SET_ALL_GATES'; payload: boolean }
+  | { type: 'TRIGGER_CAPTURE' };
+
+const initialGateStates: Record<string, boolean> = {};
+mockDevices.filter(d => d.type === 'gate').forEach(d => {
+  initialGateStates[d.id] = false;
+});
 
 const initialState: AppState = {
   vehicles: mockVehicles,
@@ -50,7 +60,9 @@ const initialState: AppState = {
   },
   selectedVehicle: null,
   activeTab: 'monitor',
-  unacknowledgedAlerts: mockAlerts.filter(a => !a.acknowledged).length
+  unacknowledgedAlerts: mockAlerts.filter(a => !a.acknowledged).length,
+  gateStates: initialGateStates,
+  lastCaptureTime: null
 };
 
 function appReducer(state: AppState, action: ActionType): AppState {
@@ -134,6 +146,31 @@ function appReducer(state: AppState, action: ActionType): AppState {
       return {
         ...state,
         currentShift: { ...state.currentShift, ...action.payload }
+      };
+
+    case 'SET_GATE_STATE':
+      return {
+        ...state,
+        gateStates: {
+          ...state.gateStates,
+          [action.payload.deviceId]: action.payload.isOpen
+        }
+      };
+
+    case 'SET_ALL_GATES':
+      const newGateStates: Record<string, boolean> = {};
+      Object.keys(state.gateStates).forEach(id => {
+        newGateStates[id] = action.payload;
+      });
+      return {
+        ...state,
+        gateStates: newGateStates
+      };
+
+    case 'TRIGGER_CAPTURE':
+      return {
+        ...state,
+        lastCaptureTime: new Date()
       };
 
     case 'COMPLETE_SHIFT':

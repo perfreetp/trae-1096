@@ -56,32 +56,49 @@ function AppContent() {
   useEffect(() => {
     if (!window.electronAPI) return;
 
-    window.electronAPI.onLockScreen(() => {
-      addOperationLog('系统操作', '锁定屏幕');
-      showMenuTip('屏幕已锁定（模拟）', 'info');
-    });
+    const handlers = {
+      lockScreen: () => {
+        addOperationLog('系统操作', '锁定屏幕');
+        showMenuTip('屏幕已锁定（模拟）', 'info');
+      },
+      openGate: () => {
+        dispatch({ type: 'SET_ACTIVE_TAB', payload: 'control' });
+        dispatch({ type: 'SET_ALL_GATES', payload: true });
+        addOperationLog('道闸控制', '菜单栏操作：开启所有道闸');
+        showMenuTip('已开启所有道闸', 'success');
+      },
+      closeGate: () => {
+        dispatch({ type: 'SET_ACTIVE_TAB', payload: 'control' });
+        dispatch({ type: 'SET_ALL_GATES', payload: false });
+        addOperationLog('道闸控制', '菜单栏操作：关闭所有道闸');
+        showMenuTip('已关闭所有道闸', 'success');
+      },
+      capture: () => {
+        dispatch({ type: 'SET_ACTIVE_TAB', payload: 'monitor' });
+        dispatch({ type: 'TRIGGER_CAPTURE' });
+        addOperationLog('抓拍操作', '菜单栏操作：触发抓拍');
+        showMenuTip('已触发抓拍', 'success');
+      },
+      showAbout: () => {
+        showMenuTip('停车场中控系统 v1.0.0', 'info');
+      }
+    };
 
-    window.electronAPI.onOpenGate(() => {
-      dispatch({ type: 'SET_ACTIVE_TAB', payload: 'control' });
-      addOperationLog('道闸控制', '菜单栏操作：开启所有道闸');
-      showMenuTip('已执行开闸操作，详情见远程控制', 'success');
-    });
+    window.electronAPI.onLockScreen(handlers.lockScreen);
+    window.electronAPI.onOpenGate(handlers.openGate);
+    window.electronAPI.onCloseGate(handlers.closeGate);
+    window.electronAPI.onCapture(handlers.capture);
+    window.electronAPI.onShowAbout(handlers.showAbout);
 
-    window.electronAPI.onCloseGate(() => {
-      dispatch({ type: 'SET_ACTIVE_TAB', payload: 'control' });
-      addOperationLog('道闸控制', '菜单栏操作：关闭所有道闸');
-      showMenuTip('已执行关闸操作，详情见远程控制', 'success');
-    });
-
-    window.electronAPI.onCapture(() => {
-      dispatch({ type: 'SET_ACTIVE_TAB', payload: 'monitor' });
-      addOperationLog('抓拍操作', '菜单栏操作：触发抓拍');
-      showMenuTip('已触发抓拍，详情见实时监控', 'success');
-    });
-
-    window.electronAPI.onShowAbout(() => {
-      showMenuTip('停车场中控系统 v1.0.0', 'info');
-    });
+    return () => {
+      if (window.electronAPI) {
+        window.electronAPI.onLockScreen(() => {});
+        window.electronAPI.onOpenGate(() => {});
+        window.electronAPI.onCloseGate(() => {});
+        window.electronAPI.onCapture(() => {});
+        window.electronAPI.onShowAbout(() => {});
+      }
+    };
   }, [dispatch, addOperationLog]);
 
   const pendingPlates = state.vehicles.filter(v => 

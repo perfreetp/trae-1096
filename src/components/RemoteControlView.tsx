@@ -8,13 +8,7 @@ import { formatDateTime } from '../utils/helpers';
 import type { Device } from '../types';
 
 const RemoteControlView: React.FC = () => {
-  const { state, addOperationLog } = useApp();
-  const [gateStates, setGateStates] = useState<Record<string, boolean>>({
-    'cam001': false,
-    'cam002': false,
-    'cam003': false,
-    'cam004': false
-  });
+  const { state, dispatch, addOperationLog } = useApp();
   const [intercomStates, setIntercomStates] = useState<Record<string, { calling: boolean; connected: boolean; muted: boolean }>>({
     'intercom001': { calling: false, connected: false, muted: false },
     'intercom002': { calling: false, connected: false, muted: false }
@@ -30,7 +24,7 @@ const RemoteControlView: React.FC = () => {
 
   const handleGateControl = (device: Device, action: 'open' | 'close') => {
     const newState = action === 'open';
-    setGateStates(prev => ({ ...prev, [device.id]: newState }));
+    dispatch({ type: 'SET_GATE_STATE', payload: { deviceId: device.id, isOpen: newState } });
 
     addOperationLog(
       '道闸控制',
@@ -122,7 +116,7 @@ const RemoteControlView: React.FC = () => {
           </h3>
           <div className="space-y-3">
             {gateDevices.map(device => {
-              const isOpen = gateStates[device.id];
+              const isOpen = state.gateStates[device.id] || false;
               return (
                 <div
                   key={device.id}

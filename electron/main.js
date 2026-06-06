@@ -112,7 +112,7 @@ function createWindow() {
   Menu.setApplicationMenu(menu);
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5181');
+    mainWindow.loadURL('http://localhost:5199');
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));

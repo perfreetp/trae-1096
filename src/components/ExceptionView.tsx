@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   AlertTriangle, Check, AlertCircle,
   WifiOff, Car, Users, Clock, Bell, Filter
@@ -22,10 +22,15 @@ const typeConfig: Record<string, { icon: React.ElementType; label: string }> = {
   system_error: { icon: AlertTriangle, label: '系统错误' }
 };
 
+const FULL_PARKING_THRESHOLD = 95;
+
 const ExceptionView: React.FC = () => {
   const { state, dispatch, addOperationLog } = useApp();
   const [severityFilter, setSeverityFilter] = useState<string>('');
   const [showSuccessTip, setShowSuccessTip] = useState(false);
+
+  const parkingUsage = 86.4;
+  const isFull = parkingUsage >= FULL_PARKING_THRESHOLD;
 
   const stats = useMemo(() => {
     const unacknowledged = state.alerts.filter(a => !a.acknowledged);
@@ -76,8 +81,26 @@ const ExceptionView: React.FC = () => {
     setTimeout(() => setShowSuccessTip(false), 1500);
   };
 
-  const parkingUsage = 86.4;
-  const isFull = parkingUsage >= 95;
+  useEffect(() => {
+    if (isFull) {
+      const existingFullAlert = state.alerts.find(
+        a => a.type === 'full_parking' && !a.acknowledged
+      );
+      if (!existingFullAlert) {
+        dispatch({
+          type: 'ADD_ALERT',
+          payload: {
+            id: `alert${Date.now()}-fullparking`,
+            type: 'full_parking',
+            severity: 'critical',
+            message: `车位已满，使用率达 ${parkingUsage}%`,
+            timestamp: new Date(),
+            acknowledged: false
+          }
+        });
+      }
+    }
+  }, [isFull, parkingUsage, state.alerts, dispatch]);
 
   return (
     <div className="h-full flex flex-col p-4">
