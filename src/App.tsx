@@ -25,14 +25,64 @@ const tabs = [
   { id: 'log', label: '日志查询', icon: FileText }
 ];
 
+declare global {
+  interface Window {
+    electronAPI?: {
+      getAppVersion: () => Promise<string>;
+      onLockScreen: (callback: () => void) => void;
+      onOpenGate: (callback: () => void) => void;
+      onCloseGate: (callback: () => void) => void;
+      onCapture: (callback: () => void) => void;
+      onShowAbout: (callback: () => void) => void;
+    };
+  }
+}
+
 function AppContent() {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, addOperationLog } = useApp();
   const [currentTime, setCurrentTime] = React.useState(new Date());
+  const [menuTip, setMenuTip] = React.useState<{ show: boolean; message: string; type: 'success' | 'info' }>({ show: false, message: '', type: 'info' });
+
+  const showMenuTip = (message: string, type: 'success' | 'info' = 'info') => {
+    setMenuTip({ show: true, message, type });
+    setTimeout(() => setMenuTip(prev => ({ ...prev, show: false })), 2500);
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    window.electronAPI.onLockScreen(() => {
+      addOperationLog('系统操作', '锁定屏幕');
+      showMenuTip('屏幕已锁定（模拟）', 'info');
+    });
+
+    window.electronAPI.onOpenGate(() => {
+      dispatch({ type: 'SET_ACTIVE_TAB', payload: 'control' });
+      addOperationLog('道闸控制', '菜单栏操作：开启所有道闸');
+      showMenuTip('已执行开闸操作，详情见远程控制', 'success');
+    });
+
+    window.electronAPI.onCloseGate(() => {
+      dispatch({ type: 'SET_ACTIVE_TAB', payload: 'control' });
+      addOperationLog('道闸控制', '菜单栏操作：关闭所有道闸');
+      showMenuTip('已执行关闸操作，详情见远程控制', 'success');
+    });
+
+    window.electronAPI.onCapture(() => {
+      dispatch({ type: 'SET_ACTIVE_TAB', payload: 'monitor' });
+      addOperationLog('抓拍操作', '菜单栏操作：触发抓拍');
+      showMenuTip('已触发抓拍，详情见实时监控', 'success');
+    });
+
+    window.electronAPI.onShowAbout(() => {
+      showMenuTip('停车场中控系统 v1.0.0', 'info');
+    });
+  }, [dispatch, addOperationLog]);
 
   const pendingPlates = state.vehicles.filter(v => 
     !v.hasPlate || v.plateConfidence < 0.9
@@ -71,6 +121,14 @@ function AppContent() {
 
   return (
     <div className="w-screen h-screen flex flex-col bg-slate-900 text-slate-200 overflow-hidden">
+      {menuTip.show && (
+        <div className={`fixed top-16 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse ${
+          menuTip.type === 'success' ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
+        }`}>
+          {menuTip.message}
+        </div>
+      )}
+
       <header className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 flex-shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">

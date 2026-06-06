@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileCheck, Check, X, Edit2, Save, UserPlus,
   Car, Clock, User, FileText, AlertTriangle, Camera
@@ -36,6 +36,14 @@ const PlateConfirmView: React.FC = () => {
       !v.hasPlate || v.plateConfidence < 0.9
     ).slice(0, 10);
   }, [state.vehicles]);
+
+  useEffect(() => {
+    if (state.selectedVehicle) {
+      setSelectedVehicle(state.selectedVehicle);
+      setEditMode(false);
+      setEditedPlate(state.selectedVehicle.plateNumber);
+    }
+  }, [state.selectedVehicle]);
 
   const showTip = (message: string) => {
     setSuccessMessage(message);

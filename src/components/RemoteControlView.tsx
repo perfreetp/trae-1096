@@ -87,9 +87,9 @@ const RemoteControlView: React.FC = () => {
     showTip('设备状态已刷新');
   };
 
-  const gateDevices = state.devices.filter(d => d.type === 'gate' || d.type === 'camera');
+  const gateDevices = state.devices.filter(d => d.type === 'gate');
   const intercomDevices = state.devices.filter(d => d.type === 'intercom');
-  const otherDevices = state.devices.filter(d => !['gate', 'camera', 'intercom'].includes(d.type));
+  const otherDevices = state.devices.filter(d => !['gate', 'intercom'].includes(d.type));
 
   return (
     <div className="h-full flex flex-col p-4">

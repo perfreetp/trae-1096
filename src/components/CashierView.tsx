@@ -28,10 +28,17 @@ const CashierView: React.FC = () => {
     return calculateParkingFee(selectedVehicle.entryTime, exitTime, selectedVehicle.vehicleType);
   }, [selectedVehicle]);
 
-  const changeAmount = useMemo(() => {
-    if (!feeResult || !receivedAmount) return 0;
+  const paymentStatus = useMemo(() => {
+    if (!feeResult || !receivedAmount) return { status: 'empty', diff: 0, change: 0 };
     const received = parseFloat(receivedAmount) || 0;
-    return Math.max(0, received - feeResult.actualFee);
+    const diff = feeResult.actualFee - received;
+    const change = received - feeResult.actualFee;
+    
+    if (received < feeResult.actualFee) {
+      return { status: 'insufficient', diff, change: 0 };
+    } else {
+      return { status: 'sufficient', diff: 0, change };
+    }
   }, [feeResult, receivedAmount]);
 
   const cashStats = useMemo(() => {
@@ -100,11 +107,11 @@ const CashierView: React.FC = () => {
 
     addOperationLog(
       '现金收费',
-      `车牌: ${selectedVehicle.plateNumber || '无牌车'}, 金额: ¥${feeResult.actualFee}, 实收: ¥${received}, 找零: ¥${changeAmount.toFixed(2)}`,
+      `车牌: ${selectedVehicle.plateNumber || '无牌车'}, 金额: ¥${feeResult.actualFee}, 实收: ¥${received}, 找零: ¥${paymentStatus.change.toFixed(2)}`,
       { plateNumber: selectedVehicle.plateNumber }
     );
 
-    showTip(`收费成功！找零: ¥${changeAmount.toFixed(2)}`);
+    showTip(`收费成功！找零: ¥${paymentStatus.change.toFixed(2)}`);
     setSelectedVehicle(null);
     setReceivedAmount('');
   };
@@ -270,6 +277,16 @@ const CashierView: React.FC = () => {
 
             <div className="bg-slate-700/50 rounded-xl p-5 mb-6">
               <h4 className="font-medium mb-4 flex items-center gap-2">
+                <Clock size={16} className="text-blue-400" />
+                停车时长
+              </h4>
+              <div className="text-center py-4 bg-slate-900/50 rounded-lg mb-6">
+                <span className="text-3xl font-bold text-blue-400 font-mono">
+                  {feeResult?.durationText}
+                </span>
+              </div>
+
+              <h4 className="font-medium mb-4 flex items-center gap-2">
                 <Receipt size={16} className="text-yellow-400" />
                 费用明细
               </h4>
@@ -277,7 +294,7 @@ const CashierView: React.FC = () => {
                 {feeResult?.feeDetails.map((item, index) => (
                   <div key={index} className="flex justify-between text-sm">
                     <span className="text-slate-400">{item.name}</span>
-                    <span>{item.value} {item.unit}</span>
+                    <span>¥{item.value.toFixed(2)}</span>
                   </div>
                 ))}
                 <div className="border-t border-slate-600 pt-3 mt-3">
@@ -308,20 +325,22 @@ const CashierView: React.FC = () => {
                 />
               </div>
 
-              {receivedAmount && feeResult && (
+              {receivedAmount && feeResult && paymentStatus.status !== 'empty' && (
                 <div className={`p-4 rounded-lg mb-4 ${
-                  changeAmount >= 0 
+                  paymentStatus.status === 'sufficient' 
                     ? 'bg-green-500/10 border border-green-500/30' 
                     : 'bg-red-500/10 border border-red-500/30'
                 }`}>
                   <div className="flex justify-between items-center">
-                    <span className={changeAmount >= 0 ? 'text-green-400' : 'text-red-400'}>
-                      {changeAmount >= 0 ? '应找零' : '金额不足'}
+                    <span className={paymentStatus.status === 'sufficient' ? 'text-green-400' : 'text-red-400'}>
+                      {paymentStatus.status === 'sufficient' ? '应找零' : `金额不足，还差 ¥${paymentStatus.diff.toFixed(2)}`}
                     </span>
                     <span className={`text-2xl font-bold ${
-                      changeAmount >= 0 ? 'text-green-400' : 'text-red-400'
+                      paymentStatus.status === 'sufficient' ? 'text-green-400' : 'text-red-400'
                     }`}>
-                      ¥{changeAmount.toFixed(2)}
+                      {paymentStatus.status === 'sufficient' 
+                        ? `¥${paymentStatus.change.toFixed(2)}` 
+                        : `¥${paymentStatus.diff.toFixed(2)}`}
                     </span>
                   </div>
                 </div>
@@ -337,11 +356,15 @@ const CashierView: React.FC = () => {
                 </button>
                 <button
                   onClick={handleConfirmPayment}
-                  disabled={!receivedAmount || changeAmount < 0}
-                  className="h-12 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors flex items-center justify-center gap-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!receivedAmount || paymentStatus.status !== 'sufficient'}
+                  className={`h-12 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium ${
+                    paymentStatus.status === 'sufficient'
+                      ? 'bg-green-500 text-white hover:bg-green-600'
+                      : 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                  }`}
                 >
                   <Check size={18} />
-                  确认收款
+                  {paymentStatus.status === 'insufficient' ? '请补足金额' : '确认收款'}
                 </button>
               </div>
             </div>

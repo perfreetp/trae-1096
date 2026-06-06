@@ -60,8 +60,7 @@ export function calculateParkingFee(
 
   const feeDetails = [
     { name: '首小时费用', value: firstHourFee, unit: '元' },
-    { name: `后续${Math.max(0, durationHours - 1)}小时`, value: additionalHoursFee, unit: '元' },
-    { name: '停车时长', value: durationMinutes, unit: '分钟' }
+    { name: `后续${Math.max(0, durationHours - 1)}小时`, value: additionalHoursFee, unit: '元' }
   ];
 
   return {

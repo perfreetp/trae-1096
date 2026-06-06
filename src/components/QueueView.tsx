@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
   List, ArrowUpCircle, ArrowDownCircle, Clock,
   Users, AlertTriangle, Car, Eye, FileCheck, ChevronRight,
@@ -16,6 +16,51 @@ const QueueView: React.FC = () => {
     const exit = state.vehicles.filter(v => v.direction === 'out' && !v.exitTime);
     return { entryVehicles: entry, exitVehicles: exit };
   }, [state.vehicles]);
+
+  useEffect(() => {
+    const offlineDevices = state.devices.filter(d => d.status === 'offline');
+    offlineDevices.forEach(device => {
+      const existingAlert = state.alerts.find(
+        a => a.type === 'device_offline' && a.deviceId === device.id && !a.acknowledged
+      );
+      if (!existingAlert) {
+        dispatch({
+          type: 'ADD_ALERT',
+          payload: {
+            id: `alert${Date.now()}-${device.id}`,
+            type: 'device_offline',
+            severity: 'error',
+            message: `${device.name} 设备离线`,
+            deviceId: device.id,
+            timestamp: new Date(),
+            acknowledged: false
+          }
+        });
+      }
+    });
+  }, [state.devices, state.alerts, dispatch]);
+
+  useEffect(() => {
+    const isCongested = entryVehicles.length >= 5 || exitVehicles.length >= 5;
+    if (isCongested) {
+      const existingCongestionAlert = state.alerts.find(
+        a => a.type === 'congestion' && !a.acknowledged
+      );
+      if (!existingCongestionAlert) {
+        dispatch({
+          type: 'ADD_ALERT',
+          payload: {
+            id: `alert${Date.now()}-congestion`,
+            type: 'congestion',
+            severity: 'warning',
+            message: `通道拥堵：入口${entryVehicles.length}辆，出口${exitVehicles.length}辆等待`,
+            timestamp: new Date(),
+            acknowledged: false
+          }
+        });
+      }
+    }
+  }, [entryVehicles.length, exitVehicles.length, state.alerts, dispatch]);
 
   const getLaneStatus = (count: number) => {
     if (count >= 5) return { status: '拥堵', color: 'text-red-400 bg-red-500/20', barColor: 'bg-red-500' };
