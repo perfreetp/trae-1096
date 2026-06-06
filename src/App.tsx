@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { 
   Camera, List, FileCheck, Settings, 
-  AlertTriangle, DollarSign, User, FileText,
-  Bell, User as UserIcon, Clock
+  AlertTriangle, DollarSign, User as UserIcon, FileText,
+  Bell, Clock
 } from 'lucide-react';
+import { AppProvider, useApp } from './store/AppContext';
 import MonitorView from './components/MonitorView';
 import QueueView from './components/QueueView';
 import PlateConfirmView from './components/PlateConfirmView';
@@ -14,27 +15,48 @@ import ShiftHandoverView from './components/ShiftHandoverView';
 import LogView from './components/LogView';
 
 const tabs = [
-  { id: 'monitor', label: '实时监控', icon: Camera, badge: null },
-  { id: 'queue', label: '出入口队列', icon: List, badge: '13' },
-  { id: 'plate', label: '车牌确认', icon: FileCheck, badge: '5' },
-  { id: 'control', label: '远程控制', icon: Settings, badge: null },
-  { id: 'exception', label: '异常处理', icon: AlertTriangle, badge: '3' },
-  { id: 'cashier', label: '现金收费', icon: DollarSign, badge: null },
-  { id: 'shift', label: '班次交接', icon: User, badge: null },
-  { id: 'log', label: '日志查询', icon: FileText, badge: null }
+  { id: 'monitor', label: '实时监控', icon: Camera },
+  { id: 'queue', label: '出入口队列', icon: List },
+  { id: 'plate', label: '车牌确认', icon: FileCheck },
+  { id: 'control', label: '远程控制', icon: Settings },
+  { id: 'exception', label: '异常处理', icon: AlertTriangle },
+  { id: 'cashier', label: '现金收费', icon: DollarSign },
+  { id: 'shift', label: '班次交接', icon: UserIcon },
+  { id: 'log', label: '日志查询', icon: FileText }
 ];
 
-const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('monitor');
-  const [currentTime, setCurrentTime] = useState(new Date());
+function AppContent() {
+  const { state, dispatch } = useApp();
+  const [currentTime, setCurrentTime] = React.useState(new Date());
 
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  const pendingPlates = state.vehicles.filter(v => 
+    !v.hasPlate || v.plateConfidence < 0.9
+  ).length;
+
+  const queueCount = state.vehicles.filter(v => 
+    v.direction === 'out' && !v.exitTime
+  ).length;
+
+  const getTabBadge = (tabId: string) => {
+    switch (tabId) {
+      case 'queue': return queueCount > 0 ? String(queueCount) : null;
+      case 'plate': return pendingPlates > 0 ? String(pendingPlates) : null;
+      case 'exception': return state.unacknowledgedAlerts > 0 ? String(state.unacknowledgedAlerts) : null;
+      default: return null;
+    }
+  };
+
+  const handleTabClick = (tabId: string) => {
+    dispatch({ type: 'SET_ACTIVE_TAB', payload: tabId });
+  };
+
   const renderContent = () => {
-    switch (activeTab) {
+    switch (state.activeTab) {
       case 'monitor': return <MonitorView />;
       case 'queue': return <QueueView />;
       case 'plate': return <PlateConfirmView />;
@@ -49,7 +71,6 @@ const App: React.FC = () => {
 
   return (
     <div className="w-screen h-screen flex flex-col bg-slate-900 text-slate-200 overflow-hidden">
-      {/* 顶部标题栏 */}
       <header className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 flex-shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -84,11 +105,16 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="relative p-2 hover:bg-slate-700 rounded-lg transition-colors">
+            <button 
+              className="relative p-2 hover:bg-slate-700 rounded-lg transition-colors"
+              onClick={() => handleTabClick('exception')}
+            >
               <Bell size={18} className="text-slate-400" />
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                3
-              </span>
+              {state.unacknowledgedAlerts > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
+                  {state.unacknowledgedAlerts}
+                </span>
+              )}
             </button>
             <div className="h-6 w-px bg-slate-600"></div>
             <div className="flex items-center gap-2">
@@ -96,23 +122,23 @@ const App: React.FC = () => {
                 <UserIcon size={16} className="text-blue-400" />
               </div>
               <div className="text-sm">
-                <p className="font-medium">张值班</p>
-                <p className="text-xs text-slate-400">收费岗亭</p>
+                <p className="font-medium">{state.currentOperator.name}</p>
+                <p className="text-xs text-slate-400">{state.currentOperator.role}</p>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Tab导航栏 */}
       <nav className="h-12 bg-slate-800/80 border-b border-slate-700 flex items-center px-2 flex-shrink-0">
         {tabs.map(tab => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
+          const isActive = state.activeTab === tab.id;
+          const badge = getTabBadge(tab.id);
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               className={`relative h-9 px-4 mx-0.5 rounded-lg flex items-center gap-2 text-sm transition-all ${
                 isActive 
                   ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
@@ -121,13 +147,13 @@ const App: React.FC = () => {
             >
               <Icon size={16} />
               <span>{tab.label}</span>
-              {tab.badge && (
+              {badge && (
                 <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                   isActive 
                     ? 'bg-white/20 text-white' 
                     : 'bg-red-500/20 text-red-400'
                 }`}>
-                  {tab.badge}
+                  {badge}
                 </span>
               )}
             </button>
@@ -135,12 +161,10 @@ const App: React.FC = () => {
         })}
       </nav>
 
-      {/* 主内容区域 */}
       <main className="flex-1 overflow-hidden">
         {renderContent()}
       </main>
 
-      {/* 底部状态栏 */}
       <footer className="h-7 bg-slate-800 border-t border-slate-700 flex items-center justify-between px-4 text-xs text-slate-400 flex-shrink-0">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
@@ -149,11 +173,15 @@ const App: React.FC = () => {
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-            设备在线 10/12
+            设备在线 {state.devices.filter(d => d.status === 'online').length}/{state.devices.length}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></span>
             车位使用率 86.4%
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+            班次: {state.currentShift.operatorName}
           </span>
         </div>
         <div className="flex items-center gap-4">
@@ -164,6 +192,14 @@ const App: React.FC = () => {
       </footer>
     </div>
   );
-};
+}
+
+function App() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
+  );
+}
 
 export default App;

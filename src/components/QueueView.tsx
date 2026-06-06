@@ -1,240 +1,286 @@
-import React, { useState } from 'react';
-import { List, ArrowUpCircle, ArrowDownCircle, AlertTriangle, Clock, Car } from 'lucide-react';
-import { mockLaneQueues } from '../data/mockData';
-import type { LaneQueue } from '../types';
+import React, { useMemo } from 'react';
+import {
+  List, ArrowUpCircle, ArrowDownCircle, Clock,
+  Users, AlertTriangle, Car, Eye, FileCheck, ChevronRight,
+  DollarSign, Settings
+} from 'lucide-react';
+import { useApp } from '../store/AppContext';
+import { formatDateTime, getVehicleTypeName } from '../utils/helpers';
+import type { Vehicle } from '../types';
 
 const QueueView: React.FC = () => {
-  const [selectedLane, setSelectedLane] = useState<string | null>(null);
+  const { state, dispatch } = useApp();
 
-  const getStatusColor = (status: LaneQueue['status']) => {
-    switch (status) {
-      case 'normal': return 'text-green-400 bg-green-400/10';
-      case 'busy': return 'text-yellow-400 bg-yellow-400/10';
-      case 'congested': return 'text-red-400 bg-red-400/10';
-    }
+  const { entryVehicles, exitVehicles } = useMemo(() => {
+    const entry = state.vehicles.filter(v => v.direction === 'in');
+    const exit = state.vehicles.filter(v => v.direction === 'out' && !v.exitTime);
+    return { entryVehicles: entry, exitVehicles: exit };
+  }, [state.vehicles]);
+
+  const getLaneStatus = (count: number) => {
+    if (count >= 5) return { status: '拥堵', color: 'text-red-400 bg-red-500/20', barColor: 'bg-red-500' };
+    if (count >= 3) return { status: '繁忙', color: 'text-yellow-400 bg-yellow-500/20', barColor: 'bg-yellow-500' };
+    return { status: '畅通', color: 'text-green-400 bg-green-500/20', barColor: 'bg-green-500' };
   };
 
-  const getStatusText = (status: LaneQueue['status']) => {
-    switch (status) {
-      case 'normal': return '畅通';
-      case 'busy': return '繁忙';
-      case 'congested': return '拥堵';
-    }
+  const entryStatus = getLaneStatus(entryVehicles.length);
+  const exitStatus = getLaneStatus(exitVehicles.length);
+
+  const handleVehicleClick = (vehicle: Vehicle) => {
+    dispatch({ type: 'SELECT_VEHICLE', payload: vehicle });
+    dispatch({ type: 'SET_ACTIVE_TAB', payload: 'plate' });
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const handleViewMonitor = () => {
+    dispatch({ type: 'SET_ACTIVE_TAB', payload: 'monitor' });
   };
 
-  const formatWaitTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
-  };
-
-  const inLanes = mockLaneQueues.filter(q => q.direction === 'in');
-  const outLanes = mockLaneQueues.filter(q => q.direction === 'out');
-
-  const totalWaiting = mockLaneQueues.reduce((sum, q) => sum + q.waitingCount, 0);
-  const congestedLanes = mockLaneQueues.filter(q => q.status === 'congested').length;
+  const renderVehicleCard = (vehicle: Vehicle, index: number) => (
+    <div
+      key={vehicle.id}
+      className="p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-all cursor-pointer group"
+      onClick={() => handleVehicleClick(vehicle)}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-500/20 rounded flex items-center justify-center text-sm font-bold text-blue-400">
+            {index + 1}
+          </div>
+          <div>
+            <p className={`font-mono font-bold ${
+              vehicle.hasPlate ? 'text-white' : 'text-orange-400'
+            }`}>
+              {vehicle.plateNumber || '无牌车'}
+            </p>
+            <p className="text-xs text-slate-400">
+              {getVehicleTypeName(vehicle.vehicleType)} · {vehicle.color}
+            </p>
+          </div>
+        </div>
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+          <ChevronRight size={16} className="text-slate-400" />
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs">
+        <span className="text-slate-500 flex items-center gap-1">
+          <Clock size={10} />
+          {formatDateTime(vehicle.entryTime)}
+        </span>
+        <span className="text-slate-500">{vehicle.lane}</span>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="h-full flex flex-col bg-slate-900">
-      {/* 顶部栏 */}
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <List size={20} className="text-blue-400" />
-            出入口队列
-          </h2>
-        </div>
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400">等待车辆:</span>
-            <span className="text-yellow-400 font-bold">{totalWaiting}</span>
-          </div>
-          {congestedLanes > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/20 text-red-400 rounded-full">
-              <AlertTriangle size={14} className="blink" />
-              <span>{congestedLanes}个车道拥堵</span>
+    <div className="h-full flex gap-4 p-4">
+      <div className="flex-1 flex flex-col bg-slate-800 rounded-xl">
+        <div className="p-4 border-b border-slate-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-500/20 rounded-lg">
+                <ArrowDownCircle size={20} className="text-green-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold flex items-center gap-2">
+                  入口队列
+                  <span className={`px-2 py-0.5 rounded text-xs ${entryStatus.color}`}>
+                    {entryStatus.status}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">共 {entryVehicles.length} 辆等待</p>
+              </div>
             </div>
+            <button
+              onClick={handleViewMonitor}
+              className="px-3 h-8 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-1.5 transition-colors"
+            >
+              <Eye size={14} />
+              查看监控
+            </button>
+          </div>
+
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span>车道负载</span>
+              <span>{entryVehicles.length} / 10</span>
+            </div>
+            <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${entryStatus.barColor} transition-all`}
+                style={{ width: `${Math.min(entryVehicles.length * 10, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {entryVehicles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-500">
+              <Car size={40} className="mb-2 opacity-30" />
+              <p className="text-sm">入口暂无车辆排队</p>
+            </div>
+          ) : (
+            entryVehicles.map((v, i) => renderVehicleCard(v, i))
           )}
         </div>
       </div>
 
-      {/* 车道状态概览 */}
-      <div className="grid grid-cols-4 gap-3 px-4 py-3 bg-slate-800/50 border-b border-slate-700">
-        {mockLaneQueues.map(lane => (
-          <div 
-            key={lane.id}
-            className={`p-3 rounded-lg border cursor-pointer transition-all ${
-              selectedLane === lane.id 
-                ? 'bg-blue-500/20 border-blue-500' 
-                : 'bg-slate-700/50 border-slate-600 hover:border-slate-500'
-            }`}
-            onClick={() => setSelectedLane(selectedLane === lane.id ? null : lane.id)}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                {lane.direction === 'in' ? (
-                  <ArrowDownCircle size={16} className="text-green-400" />
-                ) : (
-                  <ArrowUpCircle size={16} className="text-blue-400" />
-                )}
-                <span className="text-sm font-medium">{lane.laneName}</span>
+      <div className="flex-1 flex flex-col bg-slate-800 rounded-xl">
+        <div className="p-4 border-b border-slate-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-500/20 rounded-lg">
+                <ArrowUpCircle size={20} className="text-orange-400" />
               </div>
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(lane.status)}`}>
-                {getStatusText(lane.status)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 text-sm">
-                <Car size={14} className="text-slate-400" />
-                <span className="text-white font-medium">{lane.waitingCount}</span>
-                <span className="text-slate-400">辆</span>
-              </div>
-              <div className="flex items-center gap-1 text-sm">
-                <Clock size={14} className="text-slate-400" />
-                <span className="text-slate-300">{formatWaitTime(lane.averageWaitTime)}</span>
+              <div>
+                <h3 className="font-semibold flex items-center gap-2">
+                  出口队列
+                  <span className={`px-2 py-0.5 rounded text-xs ${exitStatus.color}`}>
+                    {exitStatus.status}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">共 {exitVehicles.length} 辆等待</p>
               </div>
             </div>
-            {lane.status === 'congested' && (
-              <div className="mt-2 p-1.5 bg-red-500/10 rounded text-xs text-red-400 flex items-center gap-1">
-                <AlertTriangle size={12} />
-                建议增开人工通道
-              </div>
-            )}
+            <button
+              onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: 'cashier' })}
+              className="px-3 h-8 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-sm flex items-center gap-1.5 transition-colors"
+            >
+              <DollarSign size={14} />
+              去收费
+            </button>
           </div>
-        ))}
+
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span>车道负载</span>
+              <span>{exitVehicles.length} / 10</span>
+            </div>
+            <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${exitStatus.barColor} transition-all`}
+                style={{ width: `${Math.min(exitVehicles.length * 10, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+
+          {exitVehicles.length >= 5 && (
+            <div className="mt-3 p-2 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
+              <AlertTriangle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium text-red-400">出口拥堵提醒</p>
+                <p className="text-xs text-slate-400 mt-0.5">建议增开收费通道或加快处理速度</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {exitVehicles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-500">
+              <Car size={40} className="mb-2 opacity-30" />
+              <p className="text-sm">出口暂无车辆排队</p>
+            </div>
+          ) : (
+            exitVehicles.map((v, i) => renderVehicleCard(v, i))
+          )}
+        </div>
       </div>
 
-      {/* 详细队列列表 */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* 入口队列 */}
-        <div className="flex-1 flex flex-col border-r border-slate-700">
-          <div className="px-4 py-2 bg-green-500/10 border-b border-slate-700 flex items-center gap-2">
-            <ArrowDownCircle size={16} className="text-green-400" />
-            <span className="font-medium text-green-400">入口队列</span>
-            <span className="text-sm text-slate-400">({inLanes.reduce((s, l) => s + l.waitingCount, 0)}辆)</span>
-          </div>
-          <div className="flex-1 overflow-auto p-3 space-y-3">
-            {inLanes.map(lane => (
-              <div key={lane.id} className="bg-slate-800 rounded-lg overflow-hidden">
-                <div className="px-3 py-2 bg-slate-700/50 border-b border-slate-600 flex items-center justify-between">
-                  <span className="font-medium">{lane.laneName}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(lane.status)}`}>
-                    {getStatusText(lane.status)}
-                  </span>
-                </div>
-                <div className="divide-y divide-slate-700">
-                  {lane.vehicles.map((vehicle, idx) => (
-                    <div 
-                      key={vehicle.id}
-                      className="px-3 py-2.5 flex items-center gap-3 hover:bg-slate-700/30 cursor-pointer"
-                    >
-                      <div className="w-6 h-6 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold">
-                        {idx + 1}
-                      </div>
-                      <img 
-                        src={vehicle.captureImage} 
-                        alt="抓拍"
-                        className="w-16 h-10 rounded object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-mono font-bold ${
-                            vehicle.hasPlate ? 'text-white' : 'text-yellow-400'
-                          }`}>
-                            {vehicle.hasPlate ? vehicle.plateNumber : '无牌车'}
-                          </span>
-                          {!vehicle.hasPlate && (
-                            <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
-                              待确认
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
-                          <span>{vehicle.brand} {vehicle.color}</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-slate-400">等待时长</div>
-                        <div className="text-sm font-mono text-white">
-                          {formatWaitTime(Math.floor((Date.now() - vehicle.entryTime.getTime()) / 1000))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {lane.vehicles.length === 0 && (
-                    <div className="px-3 py-8 text-center text-slate-500 text-sm">
-                      暂无等待车辆
-                    </div>
-                  )}
-                </div>
+      <div className="w-64 flex flex-col gap-4">
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h4 className="font-medium mb-3 flex items-center gap-2">
+            <Users size={16} className="text-blue-400" />
+            队列统计
+          </h4>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">入口等待</span>
+              <span className="font-mono font-bold text-green-400">{entryVehicles.length} 辆</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">出口等待</span>
+              <span className="font-mono font-bold text-orange-400">{exitVehicles.length} 辆</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">等待超时</span>
+              <span className="font-mono font-bold text-red-400">0 辆</span>
+            </div>
+            <div className="pt-3 border-t border-slate-700">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">总等待车辆</span>
+                <span className="font-mono font-bold text-xl text-white">
+                  {entryVehicles.length + exitVehicles.length}
+                </span>
               </div>
-            ))}
+            </div>
           </div>
         </div>
 
-        {/* 出口队列 */}
-        <div className="flex-1 flex flex-col">
-          <div className="px-4 py-2 bg-blue-500/10 border-b border-slate-700 flex items-center gap-2">
-            <ArrowUpCircle size={16} className="text-blue-400" />
-            <span className="font-medium text-blue-400">出口队列</span>
-            <span className="text-sm text-slate-400">({outLanes.reduce((s, l) => s + l.waitingCount, 0)}辆)</span>
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h4 className="font-medium mb-3 flex items-center gap-2">
+            <FileCheck size={16} className="text-purple-400" />
+            快捷操作
+          </h4>
+          <div className="space-y-2">
+            <button
+              onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: 'plate' })}
+              className="w-full h-9 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-2 transition-colors"
+            >
+              <FileCheck size={14} />
+              车牌确认
+            </button>
+            <button
+              onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: 'control' })}
+              className="w-full h-9 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-2 transition-colors"
+            >
+              <Settings size={14} />
+              远程控制
+            </button>
+            <button
+              onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: 'exception' })}
+              className="w-full h-9 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-2 transition-colors"
+            >
+              <AlertTriangle size={14} />
+              异常处理
+            </button>
           </div>
-          <div className="flex-1 overflow-auto p-3 space-y-3">
-            {outLanes.map(lane => (
-              <div key={lane.id} className="bg-slate-800 rounded-lg overflow-hidden">
-                <div className="px-3 py-2 bg-slate-700/50 border-b border-slate-600 flex items-center justify-between">
-                  <span className="font-medium">{lane.laneName}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(lane.status)}`}>
-                    {getStatusText(lane.status)}
-                  </span>
-                </div>
-                <div className="divide-y divide-slate-700">
-                  {lane.vehicles.map((vehicle, idx) => (
-                    <div 
-                      key={vehicle.id}
-                      className="px-3 py-2.5 flex items-center gap-3 hover:bg-slate-700/30 cursor-pointer"
-                    >
-                      <div className="w-6 h-6 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold">
-                        {idx + 1}
-                      </div>
-                      <img 
-                        src={vehicle.captureImage} 
-                        alt="抓拍"
-                        className="w-16 h-10 rounded object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-white">
-                            {vehicle.plateNumber}
-                          </span>
-                          <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
-                            待缴费
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
-                          <span>入场: {formatTime(vehicle.entryTime)}</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-slate-400">预计费用</div>
-                        <div className="text-sm font-mono text-yellow-400 font-bold">
-                          ¥{Math.floor(Math.random() * 30 + 5)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {lane.vehicles.length === 0 && (
-                    <div className="px-3 py-8 text-center text-slate-500 text-sm">
-                      暂无等待车辆
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+        </div>
+
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h4 className="font-medium mb-3 flex items-center gap-2">
+            <List size={16} className="text-green-400" />
+            车道状态
+          </h4>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-2 bg-slate-700/50 rounded-lg">
+              <span className="text-sm">入口1</span>
+              <span className="text-xs text-green-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                畅通
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-slate-700/50 rounded-lg">
+              <span className="text-sm">入口2</span>
+              <span className="text-xs text-green-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                畅通
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-slate-700/50 rounded-lg">
+              <span className="text-sm">出口1</span>
+              <span className="text-xs text-yellow-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
+                繁忙
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-slate-700/50 rounded-lg">
+              <span className="text-sm">出口2</span>
+              <span className="text-xs text-red-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
+                拥堵
+              </span>
+            </div>
           </div>
         </div>
       </div>

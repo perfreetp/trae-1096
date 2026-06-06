@@ -3,7 +3,7 @@ export interface Vehicle {
   plateNumber: string;
   plateConfidence: number;
   hasPlate: boolean;
-  vehicleType: 'car' | 'truck' | 'motorcycle';
+  vehicleType: 'car' | 'truck' | 'motorcycle' | 'van' | 'bus';
   color: string;
   brand: string;
   entryTime: Date;
@@ -11,6 +11,10 @@ export interface Vehicle {
   captureImage: string;
   lane: string;
   direction: 'in' | 'out';
+  ownerName?: string;
+  ownerPhone?: string;
+  remark?: string;
+  noPlateRegistered?: boolean;
 }
 
 export interface ParkingSpace {
