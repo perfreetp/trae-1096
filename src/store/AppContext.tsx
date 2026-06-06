@@ -41,6 +41,51 @@ type ActionType =
   | { type: 'SET_ALL_GATES'; payload: boolean }
   | { type: 'TRIGGER_CAPTURE' };
 
+const FULL_PARKING_THRESHOLD = 95;
+const CURRENT_OCCUPANCY = 86.4;
+
+const loadAcknowledgedAlerts = (): string[] => {
+  try {
+    const stored = localStorage.getItem('parking_acknowledged_alerts');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveAcknowledgedAlerts = (ids: string[]) => {
+  try {
+    localStorage.setItem('parking_acknowledged_alerts', JSON.stringify(ids));
+  } catch {}
+};
+
+const loadOperationLogTimestamps = (): Record<string, number> => {
+  try {
+    const stored = localStorage.getItem('parking_oplog_timestamps');
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveOperationLogTimestamps = (timestamps: Record<string, number>) => {
+  try {
+    localStorage.setItem('parking_oplog_timestamps', JSON.stringify(timestamps));
+  } catch {}
+};
+
+const acknowledgedIds = loadAcknowledgedAlerts();
+
+const initialAlerts = mockAlerts.map(alert => ({
+  ...alert,
+  acknowledged: alert.acknowledged || acknowledgedIds.includes(alert.id)
+})).filter(alert => {
+  if (alert.type === 'full_parking' && CURRENT_OCCUPANCY < FULL_PARKING_THRESHOLD) {
+    return false;
+  }
+  return true;
+});
+
 const initialGateStates: Record<string, boolean> = {};
 mockDevices.filter(d => d.type === 'gate').forEach(d => {
   initialGateStates[d.id] = false;
@@ -49,7 +94,7 @@ mockDevices.filter(d => d.type === 'gate').forEach(d => {
 const initialState: AppState = {
   vehicles: mockVehicles,
   devices: mockDevices,
-  alerts: mockAlerts,
+  alerts: initialAlerts,
   feeRecords: mockFeeRecords,
   operationLogs: mockOperationLogs,
   currentShift: mockShiftRecord,
@@ -60,7 +105,7 @@ const initialState: AppState = {
   },
   selectedVehicle: null,
   activeTab: 'monitor',
-  unacknowledgedAlerts: mockAlerts.filter(a => !a.acknowledged).length,
+  unacknowledgedAlerts: initialAlerts.filter(a => !a.acknowledged).length,
   gateStates: initialGateStates,
   lastCaptureTime: null
 };
@@ -90,29 +135,43 @@ function appReducer(state: AppState, action: ActionType): AppState {
         vehicles: state.vehicles.filter(v => v.id !== action.payload)
       };
 
-    case 'ADD_ALERT':
+    case 'ADD_ALERT': {
+      if (action.payload.type === 'full_parking' && CURRENT_OCCUPANCY < FULL_PARKING_THRESHOLD) {
+        return state;
+      }
+      const existing = state.alerts.find(a => a.id === action.payload.id);
+      if (existing) return state;
+      const newAlerts = [action.payload, ...state.alerts];
       return {
         ...state,
-        alerts: [action.payload, ...state.alerts],
-        unacknowledgedAlerts: state.unacknowledgedAlerts + 1
+        alerts: newAlerts,
+        unacknowledgedAlerts: newAlerts.filter(a => !a.acknowledged).length
       };
+    }
 
-    case 'ACKNOWLEDGE_ALERT':
+    case 'ACKNOWLEDGE_ALERT': {
       const updatedAlerts = state.alerts.map(a =>
         a.id === action.payload ? { ...a, acknowledged: true } : a
       );
+      const newAckIds = [...new Set([...loadAcknowledgedAlerts(), action.payload])];
+      saveAcknowledgedAlerts(newAckIds);
       return {
         ...state,
         alerts: updatedAlerts,
         unacknowledgedAlerts: updatedAlerts.filter(a => !a.acknowledged).length
       };
+    }
 
-    case 'ACKNOWLEDGE_ALL_ALERTS':
+    case 'ACKNOWLEDGE_ALL_ALERTS': {
+      const allAckIds = state.alerts.filter(a => !a.acknowledged).map(a => a.id);
+      const newAckIds = [...new Set([...loadAcknowledgedAlerts(), ...allAckIds])];
+      saveAcknowledgedAlerts(newAckIds);
       return {
         ...state,
         alerts: state.alerts.map(a => ({ ...a, acknowledged: true })),
         unacknowledgedAlerts: 0
       };
+    }
 
     case 'ADD_FEE_RECORD':
       return {
@@ -128,11 +187,20 @@ function appReducer(state: AppState, action: ActionType): AppState {
         )
       };
 
-    case 'ADD_OPERATION_LOG':
+    case 'ADD_OPERATION_LOG': {
+      const dedupKey = `${action.payload.action}-${action.payload.detail}`;
+      const timestamps = loadOperationLogTimestamps();
+      const now = Date.now();
+      if (timestamps[dedupKey] && now - timestamps[dedupKey] < 500) {
+        return state;
+      }
+      timestamps[dedupKey] = now;
+      saveOperationLogTimestamps(timestamps);
       return {
         ...state,
         operationLogs: [action.payload, ...state.operationLogs]
       };
+    }
 
     case 'UPDATE_DEVICE':
       return {

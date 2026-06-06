@@ -44,7 +44,6 @@ export const mockDevices: Device[] = [
 export const mockAlerts: Alert[] = [
   { id: '1', type: 'device_offline', severity: 'error', message: '出口道闸2设备离线', deviceId: '8', timestamp: new Date(Date.now() - 300000), acknowledged: false },
   { id: '2', type: 'congestion', severity: 'warning', message: '出口车道排队超过5辆车', timestamp: new Date(Date.now() - 600000), acknowledged: true },
-  { id: '3', type: 'full_parking', severity: 'warning', message: '停车位使用率超过90%', timestamp: new Date(Date.now() - 1800000), acknowledged: false },
   { id: '4', type: 'system_error', severity: 'critical', message: '数据库连接异常', timestamp: new Date(Date.now() - 3600000), acknowledged: true },
   { id: '5', type: 'suspicious', severity: 'info', message: '检测到无牌车辆进入', timestamp: new Date(Date.now() - 120000), acknowledged: false }
 ];
